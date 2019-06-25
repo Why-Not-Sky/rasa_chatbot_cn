@@ -12,75 +12,81 @@
 - [rasa对话系统踩坑记（十）](https://www.jianshu.com/p/debcf0041fcb)
 
 ## Introduction
-这个demo是用rasa-nlu完成slot filling和intent classify，用rasa-core完成DM(dialogue management)和NLG(natural language generate)。demo完成的对话主要有办理套餐和查询话费和流量，其他意图做了default回答。demo是参考了[_rasa_chatbot](https://github.com/zqhZY/_rasa_chatbot)。_rasa_chatbot存在的问题，一是版本更新不及时，API没有做相应的更改；二是没有自定义的component。
-由于rasa社区最近版本更新很频繁，以前很多方法被弃用，而且还增加了好多新的功能，这个demo比较全面和及时。
-```
-rasa-nlu:      0.13.4
-rasa-core:     0.12.3
-rasa-core-sdk: 0.12.1
-```
+五月份rasa官方发布了release版本，做了比较大的改动。介于此，[rasa_chatbot_cn](https://github.com/GaoQ1/rasa_chatbot_cn)这个demo也做出相对应的更新，更新到master分支上。之前基于`0.13`的版本在0.13.x分支上，你可以自由切换。新版本中将命令行做的十分简便，具体命令如下。
+
+**edit at 2019.06.24**
+将之前的[rasa-nlu-gao](https://github.com/GaoQ1/rasa_nlu_gq)进行了修改，以支持新版本的rasa，而且不再在源码里进行修改。首先需要`pip install rasa-nlu-gao>=0.3.0`，具体用法如下。
 
 ## Command
-### train nlu model
+### install packages
+ - python >= 3.5
 ```
-python bot.py train-nlu
+pip install -r requirements.txt
 ```
-**total_word_feature_extractor.dat**可去https://pan.baidu.com/s/1-ma0ndXBWL0rnbUqCAcL-w ，密码：lhi4 下载。nlu_model_config.yml中的pipeline可自定义，这里由于数据量较少，用了开源的方法和词向量。如果你的rasa_dataset_training.json上数据足够多，可以尝试使用nlu_embedding_config.yml配置来训练nlu model.
+下载依赖package
 
+### train model
+```
+make train
+```
+训练nlu和core模型，新版本中会将模型自动打包成zip文件
 
-### train dialogue
+### run model
 ```
-python bot.py train-dialogue
-```
-
-### train dialogue in online mod
-```
-python -m rasa_core_sdk.endpoint --actions actions &
-python -m rasa_core.train --online -o models/dialogue -d mobile_domain.yml -s data/mobile_story.md --endpoints endpoints.yml
-```
-
-### test dialogue
-```
-python -m rasa_core_sdk.endpoint --actions actions &
-python -m rasa_core.run --nlu models/nlu/default/current --core models/dialogue --endpoints endpoints.yml
+make run
 ```
 
-### provide dialogue service
+### test in cmdline
 ```
-python -m rasa_core_sdk.endpoint --actions actions &
-python -m rasa_core.train --online -o models/dialogue -d mobile_domain.yml -s data/mobile_story.md --endpoints endpoints.yml
+make run-cmdline
 ```
+可以在命令行中测试
 
-### compare policy
+### test by http server
+`http://localhost:5005/webhooks/rest/webhook` post请求，请求参数例如：
 ```
-python -m rasa_core.train compare -c keras_policy.yml embed_policy.yml -d mobile_domain.yml -s data/mobile_edit_story.md -o comparison_models/ --runs 3 --percentages 0 25 50 70
+{
+    "sender": "0001",
+    "message": "你好"
+}
 ```
-
-### evaluate policy
-```
-python -m rasa_core.evaluate compare -s data/mobile_edit_story.md --core comparison_models/ -o comparison_results/
-```
-
-## Some tips
-### rename and count story
-utils/re_story.py 是用来对mobile_story.md里面的故事进行重命名和重新计数
-### auto generate rasa_dataset_training.json
-data/rasa_dataset_training.json 是通过一些规则自动生成的，节省很多人力。仓库是[chatito_gen_nlu_data](https://github.com/GaoQ1/chatito_gen_nlu_data)
-具体用法可参考[官方文档](https://rodrigopivi.github.io/Chatito/)
-
+可以使用postman去请求调用
 
 ## Some magical functions
-最近自己开源了基于rasa-nlu的[rasa-nlu-gao](https://github.com/GaoQ1/rasa_nlu_gq)新增了N多个个自定义组件，具体用法和说明请参考[rasa对话系统踩坑记](https://www.jianshu.com/u/4b912e917c2e)。那下面就是介绍如何使用了。
-### 首先需要下载rasa-nlu-gao
+之前在[rasa-nlu-gao](https://github.com/GaoQ1/rasa_nlu_gq)增加了若干个自定义组件。而在release版本中可以直接将组建在外部调用，比如这里我举个之前的`JiebaPsegExtractor component`的栗子，直接将该组建放在*components*下面，在*config.yml*中：
 ```
-pip install rasa-nlu-gao
+- name: "components.extractors.jieba_pseg_extractor.JiebaPsegExtractor"
+  part_of_speech: ["nr"]
 ```
-### 训练模型
+这样就ok了，后续我会考虑将rasa-nlu-gao重新修改下。
+
+**[edit 2019.06.24]**
+继续上次所说的对rasa-nlu-gao进行修改，现在可以直接使用原来rasa-nlu-gao里面的组件。
+ - 首先`pip install rasa-nlu-gao>=0.3.0`
+ - 下面只需要在*config.yml*中配置：
 ```
-python bot.py train-nlu-gao
+- name: "rasa_nlu_gao.extractors.jieba_pseg_extractor.JiebaPsegExtractor"
+  part_of_speech: ["nr"]
 ```
-### 测试使用模型
+其他组件也是这样用，具体可参照[README.md](https://github.com/GaoQ1/rasa_nlu_gq/blob/master/README.md)。
+而如果是你自己的组件可以放到components里面，如果你想做贡献，欢迎fork [rasa-nlu-gao](https://github.com/GaoQ1/rasa_nlu_gq)，并提交pr。
+
+## use rasa x
+rasa新版本中，增加了rasa x这个功能。这里也做了尝试，感觉挺方便。
+
+### install rasa x
 ```
-python -m rasa_nlu_gao.server -c config_embedding_bilstm.yml --path models/nlu_gao/
+pip install rasa-x --extra-index-url https://pypi.rasa.com/simple
 ```
-后续[rasa-nlu-gao](https://github.com/GaoQ1/rasa_nlu_gq)会持续更新，也欢迎贡献。
+下载rasa-x package
+
+### use rasa x
+```
+make run-x
+```
+没错就是这么简单。Have a fun!
+
+## some problems
+ Q: 为什么我会报`couldn't find component...`这个错？
+
+ A: rasa使用了importlib动态加载自定义component和policy。这个错误的原因是你没有将component和policy的目录append到PYTHONPATH里面。你需要`export PYTHONPATH=/path/to/your/compoment`
